@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from time import sleep
 
 # Adres email na który będą wysyłane powiadomienia
@@ -11,9 +12,12 @@ SMTP_SERV = '' # adres smtp np smtp.gmail.com
 SMTP_EMAIL = '' # adres.email.z.ktorego.wysylamy.powiadomienia
 PASSWRD = '' # haslo.do.tego.konta
 
-
 filename = 'jobs.txt'
 url = 'https://jobs.solarwinds.com'
+
+HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+    }
 
 
 def file_creator():
@@ -30,10 +34,8 @@ def file_creator():
 # Funkcja do pobierania aktualnych ofert dla Krakowa
 def scrape_jobs():
     url = 'https://jobs.solarwinds.com/jobs/?sw-search=&sw-locations%5B%5D=Krakow%2C+Poland'
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
-    }
-    response = requests.get(url, headers=headers)
+
+    response = requests.get(url, headers=HEADERS)
     soup = BeautifulSoup(response.text, 'html.parser')
     jobs = soup.find_all('tr', {'class': 'job'})
     job_data = []
@@ -44,6 +46,17 @@ def scrape_jobs():
         link = job.find('a')['href']
         job_data.append({'title': title, 'location': location, 'job_id': job_id, 'link': link})
     return job_data
+
+
+def job_details(url):
+    response = requests.get(url, headers=HEADERS)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    [div.decompose() for div in soup.find_all("div", {"class": ["content-intro", "content-conclusion"]})]
+
+    job_description = soup.find("div", {"class": "desc"})
+
+    return job_description
 
 
 # Funkcja do zapisywania danych do pliku
@@ -67,11 +80,17 @@ def is_job_new(job):
 def send_email(new_jobs):
     if not new_jobs:
         return
-    message = MIMEText('Nowe oferty pracy:\n\n' + '\n\n'.join(
-        f"{job['title']} - {job['location']}\n{url + job['link']}" for job in new_jobs))
+
+    body = '<html><body><h2 style="color:red;">Nowe oferty pracy:</h2>\n\n' + '\n\n'.join(f"""
+    <h3>{job['title']} - {job['location']}</h3>\n
+    <div style='border-top: 1px solid #c0c0c0;'><p>{url+job['link']}</p>\n
+    {job_details(url+job['link'])}</div></body></html>""" for job in new_jobs)
+    message = MIMEMultipart()
     message['Subject'] = 'Nowe oferty pracy na SolarWinds Jobs'
     message['From'] = SMTP_EMAIL
     message['To'] = TO_EMAIL
+    html_body = MIMEText(body, "html")
+    message.attach(html_body)
     with smtplib.SMTP(SMTP_SERV, 587) as smtp:
         smtp.starttls()
         smtp.login(SMTP_EMAIL, PASSWRD)
