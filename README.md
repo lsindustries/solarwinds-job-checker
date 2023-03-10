@@ -13,6 +13,5 @@ To run this script every 24 hours, you can use the cron utility on Linux or macO
 3. Replace /path/to/python with the path to your Python interpreter and /path/to/script.py with the path to your Python script.
 4. Save and close the file.
 
-
 ### DEMO
 ![Screenshot](screenshot.png)
